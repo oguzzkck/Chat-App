@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Online Chat</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+	<!-- Bootstrap v4 -->
+	<link rel="stylesheet" type="text/css" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
+	<script src="http://code.jquery.com/jquery-latest.min.js"></script>
+	<!-- socket.io -->
+	<script src="/socket.io/socket.io.js"></script>
+	<!-- Animate CSS -->
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.5.2/animate.min.css">
+
+	<style type="text/css">
+	body{
+		margin-top: 40px;
+	}
+	.header{
+		margin:30px auto;
+	}
+	.list-group{
+		overflow-y: scroll;
+		height: 300px;
+	}
+	#messageArea{
+		display: none;
+	}
+	#chat{
+		height: 400px;
+		overflow-y: scroll;
+	}
+	#loginFormArea{
+		width: 400px;
+		margin:auto;
+	}
+	.error{
+		color:red;
+	}
+	.whisper{
+		color: gray;
+		font-style: italic;
+	}
+	img{
+		width: 20px;
+		height: 20px;
+	}
+</style>
+</head>
+<body>
+	<div class="container">
+
+		<div class="header">
+			<center><h2>Canlı Sohbet Odası</h2></center>
+		</div>
+
+		<div id="loginFormArea" class="row">
+			<div class="col-md-12">
+				<form id="loginForm">
+					<div class="form-groups">
+						<label for="username">Username</label>
+						<input type="text" id="username" name="" class="form-control" autofocus="" required="" placeholder="Username">
+						<br>
+						<label for="password">Password</label>
+						<input type="password" id="password" name="" class="form-control" required="" placeholder="Password">
+						<br>
+						<center><input type="submit" class="btn btn-primary" value="Login" name=""></center>
+						<center><small>Don't have an account ? <a href="signup.html">Sign up</a></small></center>
+					</div>
+				</form>
+			</div>
+		</div>
+
+		<div id="messageArea" class="row">
+			<div class="col-md-4">
+				<div class="well">
+					<h3>All Users</h3>
+					<ul class="list-group" id="users"></ul>
+				</div>
+				<button id="closeServer" class="btn btn-danger" style="float: right;">Disconnect</button>
+				<button id="ipucu" class="btn btn-primary" onclick="myFunction3()" style="float: left;">İpucu!</button>
+				<br><br>
+			</div>
+
+			<div class="col-md-8">
+				<div class="chat" id="chat"></div>
+				<form id="messageForm">
+					<div class="form-groups">
+						<label>Enter Message</label>
+						<textarea class="form-control" id="message" autofocus=""></textarea>
+						<br>
+						<input type="submit" class="btn btn-primary" value="Send Message">
+					</div>
+				</form>
+			</div>
+		</div>
+	</div>
+
+	<script type="text/javascript">
+		$(function(){
+			var socket = io.connect();
+			var $username =$('#username');
+			var $password =$('#password');
+			var $loginForm =$('#loginForm');
+			var $messageForm = $('#messageForm');
+			var $loginFormArea = $('#loginFormArea');
+			var $message = $('#message');
+			var $chat = $('#chat');
+			var $messageArea =$('#messageArea');
+			var $users =$('#users');
+			var dizi=[];
+			socket.emit("channelfixer","index");
+
+			$messageForm.submit(function(e){
+				e.preventDefault();
+				socket.emit('send message', $message.val(),function(data){
+					$chat.append('<div class="well whisper animated shake">Böyle bir kullanıcı online değil. Kontrol et!</div>');
+					document.getElementById("chat").scrollTop=document.getElementById("chat").scrollHeight;
+				});
+				$message.val('').focus();
+			});
+
+			socket.on('new message', function(data){
+						displayMsg(data);
+			});
+
+			function displayMsg(data){
+				if (data.msg !== '') {
+					$chat.append('<div class="well animated zoomIn"><strong>  '+data.user+' : </strong>'+data.msg+'</div>');
+					document.getElementById("chat").scrollTop=document.getElementById("chat").scrollHeight;
+				}else{
+					swal({
+						title: "Hata!",
+						text: "Boş mesaj gönderemezsiniz!",
+						icon: "error"
+					});
+				}
+			}
+
+			socket.on('whisper', function(data){
+				$chat.append('<div class="well whisper animated flash"><strong>'+data.user+' </strong> size özel mesaj göndermek istiyor.</div>');
+				document.getElementById("chat").scrollTop=document.getElementById("chat").scrollHeight;
+			});
+
+			socket.on('privatemsg', function(data){
+				$chat.append('<div class="well whisper animated tada"><strong>'+data.user+'  </strong> mesaj isteğini reddetti.</div>');
+				document.getElementById("chat").scrollTop=document.getElementById("chat").scrollHeight;
+
+			});
+
+			socket.on('load private msg', function(data){
+				$chat.append('<div class="well whisper animated flipInX"><strong>  '+data[data.length-1].nick+' :</strong>'+data[data.length-1].msg+'</div>');
+				document.getElementById("chat").scrollTop=document.getElementById("chat").scrollHeight;
+			});
+
+			socket.on('login page' ,function(data){
+				$loginForm.submit(function(e){
+					e.preventDefault();
+					for (var i = 0; i < data.length; i++) {
+						dizi[i] = data[i].username;
+					}
+					var loc = dizi.indexOf($username.val());
+					if (loc !== -1) {
+						if($password.val() === data[loc].password){
+							alert("Parola doğru");
+							socket.emit('new user', $username.val(),function(data){
+								if(data){
+									$loginFormArea.hide();
+									$messageArea.show();
+								}else{
+									alert("Bu kullanıcı Online");
+								}
+							});
+						}else{
+							alert("Parola yanlış");
+						}
+					}else{
+						alert("Kullanıcı bulunamadı.");
+					}
+				});
+			});
+
+			socket.on('offline',function(data){
+				for (var i = 0; i < dizi.length; i++) {
+					if (data.indexOf(dizi[i]) !== -1) {
+						document.getElementById(i).style.color="red";
+					}else{
+						document.getElementById(i).style.color="green";
+					}
+				}
+			});
+
+			socket.on('disconnect user', function(data){
+				var loc = dizi.indexOf(data);
+				document.getElementById(loc).style.color="red";
+			});
+
+			socket.on('kullanıcı',function(data){
+				var html = '';
+				for (var i = 0; i < data.length; i++) {
+					html += '<li class="list-group-item animated fadeInLeft" id="'+i+'"><img  class="rounded-circle" style="float:left; margin-right:10px;" src='+data[i].userimg+'>' + data[i].username +'</li>';
+				}
+				$users.html(html);
+			});
+
+			document.getElementById("closeServer").addEventListener("click", myFunction);
+			document.getElementById("ipucu").addEventListener("click", myFunction3);
+
+			function myFunction() {
+				socket.disconnect();
+				swal({
+					text: "Başarılı",
+					icon: "success"
+				});
+			}
+
+			function myFunction3() {
+				swal({
+					text: "Özel mesaj atmak için '/w username message' sıralamasını kullanınız. Mesajı kabul etmek için '/y username' reddetmek için '/n username' methodunu kullanınız.",
+					icon: "info"
+				});
+			}
+		});
+
+	</script>
+
+	<!-- Optional JavaScript -->
+	<!-- jQuery first, then Popper.js, then Bootstrap JS -->
+	<script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+	<!-- swal -->
+	<script src="https://unpkg.com/sweetalert/dist/sweetalert.min.js"></script>
+</body>
+</html>
